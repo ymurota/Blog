@@ -1,5 +1,6 @@
 <?php
 /* Todo: corresponding to UPDATE, FIND with conditions */
+/* Todo: Model::schema() should be called once in this class, so that it should be saved in the $this->settings */
 app::uses('ModelBehavior', 'Model');
 app::uses('Extension', 'Model');
 
@@ -20,6 +21,7 @@ class ExtensibleBehavior extends ModelBehavior{
 			 $this->settings[$Model->alias]['types'] = array('Extension' => $Model->alias);
 		 }
 
+		 $this->settings[$Model->alias]['schema'] = $Model->schema();
 		 $this->settings['Extension'] = new Extension();
 	 }
 
@@ -27,6 +29,16 @@ class ExtensibleBehavior extends ModelBehavior{
 		return $this->settings['Extension'];
 	}
 
+	public function getSchema(Model $Model) {
+		return $this->settings[$Model->alias]['schema'];
+	}
+
+	public function listField(Model $Model) {
+		$parentFields = array_keys($this->getSchema($Model));
+		$extendedFields = $this->getExtendedField($Model);
+		return array_merge($parentFields, $extendedFields);
+	}
+		
 	public function getExtendedField(Model $Model) {
 		$Extension = $this->getExtensionInstance();
 		$raw = $Extension->find('all', array(
@@ -73,10 +85,16 @@ class ExtensibleBehavior extends ModelBehavior{
 	 }
 
 	 public function beforeFind(Model $Model, $query) {
-		 pr($query);
 		 $this->_bindExtensionModel($Model);
 	 }
 
+	 public function _parseQuery(Model $Model, $query, $extension = array()) {
+		 if (is_string($query)) {
+			 $p = explode('.', $query);
+			 if ($p[0] != $Model->alias || !in_array($p[1], $this->listField())) return $extension;
+		 }
+	 }
+	 
 	 public function _makeQueryExtensional(Model $Model, $query) {
 		 $parentFields = array_keys($Model->schema());
 		 $extendedFields = $this->getExtendedField();

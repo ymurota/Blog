@@ -16,8 +16,10 @@ class MainController extends AppController {
 			),
 		);
 
+		//$conditions = array( 'Member.last_name' => 'murota', 'Extension.value' => 'man');
+		$conditions = array();
 		//$this->Member->saveAll($data);
-		pr($this->Member->find('first', array('order'=> array('Member.id' => 'desc'))));
+		pr($this->Member->Extension->find('first', array('conditions' => array('field' => 'sex'))));
 	}
 
 }
