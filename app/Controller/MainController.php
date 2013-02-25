@@ -19,7 +19,7 @@ class MainController extends AppController {
 		//$conditions = array( 'Member.last_name' => 'murota', 'Extension.value' => 'man');
 		$conditions = array();
 		//$this->Member->saveAll($data);
-		pr($this->Member->Extension->find('first', array('conditions' => array('field' => 'sex'))));
+		pr($this->Member->find('all', array('conditions'=>array('OR'=>array('Member.year' => 2002, 'Member.sex' => 'woman')))));
 	}
 
 }

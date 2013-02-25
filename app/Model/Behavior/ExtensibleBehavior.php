@@ -76,7 +76,7 @@ class ExtensibleBehavior extends ModelBehavior{
 
 	 public function beforeValidate(Model $Model) {
 		 $this->_bindExtensionModel($Model);
-		 $this->_buildQuery($Model);
+		 $this->_buildQuery($Model);//Todo: _buildQuery should return data
 		 return true;
 	 }
 
@@ -86,24 +86,105 @@ class ExtensibleBehavior extends ModelBehavior{
 
 	 public function beforeFind(Model $Model, $query) {
 		 $this->_bindExtensionModel($Model);
+		 $params = $this->_parseQueryR($Model, $query);
+		 $Extension = $this->getExtensionInstance();
+		 $a = $Extension->find('list', array('conditions' => $params['Extension']['conditions'], 'fields' => 'model_id'));
+
+		 $query = $params[$Model->alias];
+		 $query['conditions'][] = array(
+			 "{$Model->alias}.id" => $a
+		 );
+
+		 return $query;
 	 }
 
-	 public function _parseQuery(Model $Model, $query, $extension = array()) {
-		 if (is_string($query)) {
-			 $p = explode('.', $query);
-			 if ($p[0] != $Model->alias || !in_array($p[1], $this->listField())) return $extension;
+	 public function afterFind(Model $Model, $results, $primary) {
+		 foreach ($results as $k => $v) {
+			 foreach ($v as $model => $data) {
+				 if ($model == 'Extension') {
+					 foreach ($data as $n => $f) {
+						 $value = ($f['type'] == 'INT')?intval($f['value']):$f['value'];
+						 $results[$k][$Model->alias][$f['field']] = $value;
+						 unset($results[$k][$model][$n]);
+					 }
+					 unset($results[$k][$model]);
+				 }
+			 }
 		 }
+
+		 return $results;
+	 }
+
+	 public function _remove($arr = array(), $path, $d = '/') {
+		 $path = explode($d, $path);
+		 $cpy =& $arr;
+
+		 foreach ($path as $v) {
+			 if (isset($cpy[$v]) && is_array($cpy[$v])) $cpy =& $cpy[$v];
+			 else if (isset($cpy[$v]) && !is_array($cpy[$v])) break;
+			 else break;
+		 }
+
+		 unset($cpy[$v]);
+		 return $arr;
+	 }
+
+	 public function _insert($arr, $val, $path, $d='/') {
+		 $path = explode($d, $path);
+		 $cpy =& $arr;
+
+		 foreach ($path as $k) {
+			 if (isset($cpy[$k])) {
+				 $cpy =& $cpy[$k];
+			 } else {
+				 $cpy[$k] = array();
+				 $cpy =& $cpy[$k];
+			 }
+		 }
+
+		 $cpy = $val;
+		 return $arr;
+	 }
+
+	 public function _parseQueryR(Model $Model, $query, $extension = array(), $path = null) {
+		 if (!is_array($query)) return $query;
+		 if (empty($extension)) {
+			 /* initial settings */
+			 /* providing two params for the parent and Extension models */
+			 $extension[$Model->alias] = $query;
+			 $extension['Extension']	= array();
+		 }
+
+		 foreach ($query as $key => $val) {
+			 if (is_array($val)) {
+				 /* setting current path */
+				 $path = ($path)?"$path/$key":"$key";
+				
+				 $extension = $this->_parseQueryR($Model, $val, $extension, $path);
+
+				 /* returning just before */
+				 $tmp = explode('/', $path);
+				 array_pop($tmp);
+				 $path = (!empty($tmp))?join('/',$tmp):null;
+			 } else {
+				 $e = explode('.', $key);
+				 if ($e[0] == $Model->alias && !in_array($e[1], array_keys($this->getSchema($Model)))) {
+					 /* removing the extensional field from the parent params */
+					 $extension = $this->_remove($extension, "$Model->alias/$path/$key");
+					 /* instead, insert the removed value into the extensional params */
+					 $tmp = array(
+						 'Extension.model LIKE' => $Model->alias,
+						 'Extension.field LIKE' => $e[1],
+						 'Extension.value LIKE' => $val
+					 );
+					 $extension = $this->_insert($extension, $tmp, "Extension/$path");
+				 }
+			 }
+		 }
+
+		 return $extension;
 	 }
 	 
-	 public function _makeQueryExtensional(Model $Model, $query) {
-		 $parentFields = array_keys($Model->schema());
-		 $extendedFields = $this->getExtendedField();
-
-		 $target = array('conditions', 'fields', 'order');
-		 foreach ($query as $key => $val) {
-		 }
-	 }
-
 	 public function _buildQuery(Model $Model) {
 		 $data = $Model->data;
 		 $parentFields = array_keys($Model->schema());
